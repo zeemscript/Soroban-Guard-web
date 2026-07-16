@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import type { Finding } from "@/types/findings";
+import type { PolicyAppliedFinding } from "@/lib/applyPolicy";
 import SeverityBadge from "./SeverityBadge";
 import CheckTooltip from "./CheckTooltip";
 import CodeViewer from "./CodeViewer";
@@ -9,7 +10,7 @@ import { loadSourceCode } from "@/lib/codeStore";
 import { mute, unmute, isMuted } from "@/lib/mutedFindings";
 
 interface Props {
-  finding: Finding;
+  finding: Finding | PolicyAppliedFinding;
   onMuteChange?: () => void;
 }
 
@@ -61,7 +62,11 @@ export default function FindingCard({ finding, onMuteChange }: Props) {
     <div className={`slide-down rounded-lg border border-[#2a2d3a] bg-[#12151f] p-5 ${muted ? 'opacity-50' : ''}`}>
       <div className="mb-4 flex items-start justify-between gap-4">
         <div className="flex flex-wrap items-center gap-3">
-          <SeverityBadge severity={finding.severity} />
+          <SeverityBadge
+            severity={finding.severity}
+            originalSeverity={'originalSeverity' in finding ? finding.originalSeverity : undefined}
+            policyName={'policyName' in finding ? finding.policyName : undefined}
+          />
           <CheckTooltip checkName={finding.check_name} />
           {muted && (
             <span className="rounded-full bg-slate-500/10 px-2.5 py-0.5 text-xs font-semibold text-slate-400">

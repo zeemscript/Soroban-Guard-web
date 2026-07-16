@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { WalletProvider } from '@/lib/WalletContext'
+import { PolicyProvider } from '@/lib/PolicyContext'
 import { ToastProvider } from '@/lib/toast'
 import ToastContainer from '@/components/ToastContainer'
 import ErrorBoundary from '@/components/ErrorBoundary'
@@ -48,12 +49,14 @@ export default function RootLayout({
         </a>
         <ErrorBoundary>
           <WalletProvider>
-            <ToastProvider>
-              <main id="main-content" tabIndex={-1}>
-                {children}
-              </main>
-              <ToastContainer />
-            </ToastProvider>
+            <PolicyProvider>
+              <ToastProvider>
+                <main id="main-content" tabIndex={-1}>
+                  {children}
+                </main>
+                <ToastContainer />
+              </ToastProvider>
+            </PolicyProvider>
           </WalletProvider>
         </ErrorBoundary>
       </body>

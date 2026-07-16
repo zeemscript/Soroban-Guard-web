@@ -2,6 +2,8 @@ import type { Severity } from '@/types/findings'
 
 interface Props {
   severity: Severity
+  originalSeverity?: Severity  // Set when policy remapped severity
+  policyName?: string          // Name of the policy that applied the remap
   size?: 'sm' | 'md'
   includeIcon?: boolean
 }
@@ -31,17 +33,33 @@ const icons: Record<Severity, string> = {
   Info: 'ℹ',
 }
 
-export default function SeverityBadge({ severity, size = 'md', includeIcon = true }: Props) {
+export default function SeverityBadge({ severity, originalSeverity, policyName, size = 'md', includeIcon = true }: Props) {
   const padding = size === 'sm' ? 'px-2 py-0.5 text-xs' : 'px-2.5 py-1 text-xs'
+  const isPolicyModified = originalSeverity !== undefined && originalSeverity !== severity
+
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full font-semibold tracking-wide ${padding} ${styles[severity]}`}
-      role="status"
-      aria-label={`${severity} severity`}
-    >
-      <span className={`h-1.5 w-1.5 rounded-full ${dots[severity]}`} aria-hidden="true" />
-      {includeIcon && <span className="font-mono text-[0.7em] font-bold" aria-hidden="true">{icons[severity]}</span>}
-      <span>{severity}</span>
+    <span className="inline-flex items-center gap-1.5">
+      <span
+        className={`inline-flex items-center gap-1.5 rounded-full font-semibold tracking-wide ${padding} ${styles[severity]}`}
+        role="status"
+        aria-label={`${severity} severity${isPolicyModified ? ` (was ${originalSeverity})` : ''}`}
+        title={isPolicyModified ? `Remapped by policy: ${policyName || 'Unknown'}` : undefined}
+      >
+        <span className={`h-1.5 w-1.5 rounded-full ${dots[severity]}`} aria-hidden="true" />
+        {includeIcon && <span className="font-mono text-[0.7em] font-bold" aria-hidden="true">{icons[severity]}</span>}
+        <span>{severity}</span>
+      </span>
+      {isPolicyModified && (
+        <span
+          className="inline-flex items-center gap-1 text-xs text-slate-500"
+          title={`Original severity: ${originalSeverity}. Remapped by policy: ${policyName || 'Unknown'}`}
+        >
+          <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          <span className="line-through">{originalSeverity}</span>
+        </span>
+      )}
     </span>
   )
 }

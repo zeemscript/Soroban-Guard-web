@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import type { Finding, Severity } from '@/types/findings'
 import { decodeFindingsParam, encodeWorkspace } from '@/lib/share'
@@ -11,6 +11,8 @@ import { getAllScanHistory } from '@/lib/history'
 import { diffFindings } from '@/lib/diffFindings'
 import { useToast } from '@/lib/toast'
 import { useWallet } from '@/lib/WalletContext'
+import { usePolicyContext } from '@/lib/PolicyContext'
+import { applyPolicy, type PolicyAppliedFinding } from '@/lib/applyPolicy'
 import { scanContract } from '@/lib/api'
 import FindingsFilterBar from '@/components/FindingsFilterBar'
 import { filterFindings, type FilterState } from '@/lib/filterFindings'
@@ -23,6 +25,8 @@ import EmptyState from '@/components/EmptyState'
 import SeverityBadge from '@/components/SeverityBadge'
 import SeverityDonut from '@/components/SeverityDonut'
 import ThemeToggle from '@/components/ThemeToggle'
+import PolicySelector from '@/components/PolicySelector'
+import PolicyModal from '@/components/PolicyModal'
 import { generatePdfReport } from '@/lib/pdfReport'
 import { calculateScore } from '@/lib/score'
 import GithubExportModal from '@/components/GithubExportModal'
@@ -40,7 +44,9 @@ export default function ResultsClient() {
   const searchParams = useSearchParams()
   const { show } = useToast()
   const { publicKey: walletKey } = useWallet()
+  const { activePolicy } = usePolicyContext()
   const [findings, setFindings] = useState<Finding[] | null>(null)
+  const [showPolicyModal, setShowPolicyModal] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [showGithubModal, setShowGithubModal] = useState(false)
   const [showJiraModal, setShowJiraModal] = useState(false)
@@ -291,10 +297,16 @@ export default function ResultsClient() {
     )
   }
 
-  const counts: Record<Severity, number> = { Critical: 0, High: 0, Medium: 0, Low: 0, Info: 0 }
-  for (const finding of findings) counts[finding.severity]++
+  // Apply policy to remap severities
+  const policyAppliedFindings: PolicyAppliedFinding[] = useMemo(
+    () => applyPolicy(findings, activePolicy),
+    [findings, activePolicy]
+  )
 
-  const filteredByFilters = filterFindings(findings, filterState)
+  const counts: Record<Severity, number> = { Critical: 0, High: 0, Medium: 0, Low: 0, Info: 0 }
+  for (const finding of policyAppliedFindings) counts[finding.severity]++
+
+  const filteredByFilters = filterFindings(policyAppliedFindings, filterState)
   const q = searchQuery.toLowerCase()
   const filteredFindings = q
     ? filteredByFilters.filter(
@@ -522,6 +534,7 @@ export default function ResultsClient() {
                 </div>
               )}
             </div>
+            <PolicySelector onManagePolicies={() => setShowPolicyModal(true)} />
             <button
               onClick={handleScanAnother}
               className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-500 sm:px-4"
@@ -574,6 +587,14 @@ export default function ResultsClient() {
               ? 'No issues detected.'
               : `${findings.length} finding${findings.length !== 1 ? 's' : ''} detected across your contract.`}
             {duration && <span className="ml-2 text-slate-600">Scanned in {duration}s</span>}
+            {activePolicy && (
+              <span className="ml-2 inline-flex items-center gap-1 rounded bg-indigo-500/10 px-2 py-0.5 text-xs font-medium text-indigo-400">
+                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+                Policy: {activePolicy.name}
+              </span>
+            )}
           </p>
 
           <div className="flex gap-6">
@@ -662,7 +683,7 @@ export default function ResultsClient() {
               </button>
               {showWordCloud && (
                 <div className="mt-2">
-                  <FindingsWordCloud findings={findings} onTermClick={term => setSearchQuery(term)} />
+                  <FindingsWordCloud findings={policyAppliedFindings} onTermClick={term => setSearchQuery(term)} />
                 </div>
               )}
             </div>
@@ -744,7 +765,7 @@ export default function ResultsClient() {
                 ) : (
                   <>
                     <FindingsFilterBar
-                      findings={findings}
+                      findings={policyAppliedFindings}
                       filterState={filterState}
                       onFilterChange={setFilterState}
                     />
@@ -837,6 +858,9 @@ export default function ResultsClient() {
       )}
       {showSlackModal && (
         <SlackNotifyModal findings={findings} source={scanSource ?? ''} onClose={() => setShowSlackModal(false)} />
+      )}
+      {showPolicyModal && (
+        <PolicyModal onClose={() => setShowPolicyModal(false)} />
       )}
       {showShortcutsModal && (
         <div
