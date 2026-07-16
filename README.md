@@ -136,28 +136,130 @@ Results are stored with a 30-day TTL; webhook tokens expire after 1 hour.
 
 ## API Contract
 
-The app calls `POST /scan` on the core API:
+This section documents the precise contract between the frontend and `soroban-guard-core`. A machine-checkable JSON Schema is available at [`schemas/scan-contract.schema.json`](./schemas/scan-contract.schema.json) and validated by contract tests in [`__tests__/contract/scan.contract.test.ts`](./__tests__/contract/scan.contract.test.ts).
 
-**Request**
+### `POST /scan`
+
+Submit contract source for security analysis.
+
+#### Request
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `source` | `string` | Yes | Contract source code, GitHub URL, or Soroban contract ID (C-address) |
+
 ```json
-{ "source": "<contract source, github url, or contract ID>" }
+{
+  "source": "fn main() { /* contract code */ }"
+}
 ```
 
-**Response**
+**Request Headers**
+
+| Header | Required | Description |
+|--------|----------|-------------|
+| `Content-Type` | Yes | Must be `application/json` |
+| `X-Network` | No | Stellar network name (`Mainnet`, `Testnet`, `Futurenet`) |
+
+#### Response (Success)
+
+**HTTP 200 OK**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `findings` | `Finding[]` | Array of security findings (empty if contract is clean) |
+
+**Response Headers**
+
+| Header | Description |
+|--------|-------------|
+| `X-RateLimit-Remaining` | Requests remaining in current window |
+| `X-RateLimit-Limit` | Total requests allowed per window |
+| `X-RateLimit-Reset` | Unix timestamp (seconds) when window resets |
+
 ```json
 {
   "findings": [
     {
       "check_name": "unchecked-auth",
-      "severity": "High",
+      "severity": "Critical",
       "file_path": "src/lib.rs",
       "line": 42,
       "function_name": "transfer",
-      "description": "Authorization is not verified before executing privileged operation."
+      "description": "Authorization is not verified before executing privileged operation.",
+      "remediation": "Add require_auth() call before the transfer."
     }
   ]
 }
 ```
+
+#### Finding Object
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `check_name` | `string` | Yes | Identifier for the check/rule (e.g., `unchecked-auth`, `integer-overflow`) |
+| `severity` | `Severity` | Yes | One of: `Critical`, `High`, `Medium`, `Low`, `Info` |
+| `file_path` | `string` | Yes | Relative path to the file containing the issue |
+| `line` | `integer` | Yes | Line number where the issue was detected (1-indexed) |
+| `function_name` | `string` | Yes | Name of the function containing the issue |
+| `description` | `string` | Yes | Human-readable explanation of the security issue |
+| `remediation` | `string` | No | Suggested fix or mitigation |
+
+#### Response (Error)
+
+All error responses follow the same shape:
+
+```json
+{
+  "error": "Human-readable error message"
+}
+```
+
+| Status Code | Meaning | Example `error` Value |
+|-------------|---------|----------------------|
+| `400` | Bad Request — invalid source format or malformed JSON | `"Invalid source format"` |
+| `401` | Unauthorized — missing or invalid API key | `"Unauthorized"` |
+| `404` | Not Found — contract ID not found on network | `"Contract not found"` |
+| `429` | Rate Limited — too many requests | `"Rate limited"` |
+| `500` | Server Error — internal failure | `"Internal server error"` |
+
+**Rate Limit Response Headers**
+
+When rate limited (HTTP 429), the response includes:
+
+| Header | Description |
+|--------|-------------|
+| `Retry-After` | Seconds to wait before retrying |
+
+### Schema Validation
+
+The JSON Schema at `schemas/scan-contract.schema.json` can be used to validate responses at runtime or in CI:
+
+```typescript
+import Ajv from 'ajv'
+import schema from '@/schemas/scan-contract.schema.json'
+
+const ajv = new Ajv({ strict: true })
+ajv.addSchema(schema)
+const validate = ajv.compile({ $ref: `${schema.$id}#/definitions/ScanResponse` })
+
+const response = await fetch('/scan', { method: 'POST', body: JSON.stringify({ source }) })
+const data = await response.json()
+
+if (!validate(data)) {
+  console.error('Response does not match contract:', validate.errors)
+}
+```
+
+### Contract Tests
+
+Run contract tests to verify the schema against recorded/synthetic responses:
+
+```bash
+npm test -- __tests__/contract/scan.contract.test.ts
+```
+
+These tests serve as an early warning system: if `soroban-guard-core` changes its response shape in a breaking way, the tests will fail.
 
 ## Project Structure
 

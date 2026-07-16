@@ -1,0 +1,100 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://soroban-guard.dev/schemas/scan-contract.schema.json",
+  "title": "Soroban Guard Scan API Contract",
+  "description": "JSON Schema defining the request/response contract for the /scan endpoint",
+
+  "definitions": {
+    "Severity": {
+      "type": "string",
+      "enum": ["Critical", "High", "Medium", "Low", "Info"],
+      "description": "Severity level of a security finding"
+    },
+
+    "Finding": {
+      "type": "object",
+      "description": "A security finding from the scan",
+      "required": ["check_name", "severity", "file_path", "line", "function_name", "description"],
+      "additionalProperties": false,
+      "properties": {
+        "check_name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Identifier for the check/rule that triggered this finding (e.g., 'unchecked-auth', 'integer-overflow')"
+        },
+        "severity": {
+          "$ref": "#/definitions/Severity"
+        },
+        "file_path": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Relative path to the file containing the issue"
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Line number where the issue was detected (1-indexed)"
+        },
+        "function_name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Name of the function containing the issue"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Human-readable explanation of the security issue"
+        },
+        "remediation": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Suggested fix or mitigation for the issue (optional)"
+        }
+      }
+    },
+
+    "ScanRequest": {
+      "type": "object",
+      "description": "Request body for POST /scan",
+      "required": ["source"],
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Contract source code, GitHub URL, or Soroban contract ID (C-address)"
+        }
+      }
+    },
+
+    "ScanResponse": {
+      "type": "object",
+      "description": "Successful response from POST /scan (HTTP 200)",
+      "required": ["findings"],
+      "additionalProperties": false,
+      "properties": {
+        "findings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Finding"
+          },
+          "description": "List of security findings (empty array if contract is clean)"
+        }
+      }
+    },
+
+    "ErrorResponse": {
+      "type": "object",
+      "description": "Error response shape for all error status codes",
+      "required": ["error"],
+      "additionalProperties": false,
+      "properties": {
+        "error": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Human-readable error message"
+        }
+      }
+    }
+  }
+}
