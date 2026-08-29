@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 import type { Finding, Severity } from '@/types/findings'
+import type { PolicyAppliedFinding } from '@/lib/applyPolicy'
 import type { PageSize } from '@/lib/preferences'
 import { getPageSize, setPageSize, getNumericPageSize } from '@/lib/preferences'
 import BottomSheet from './BottomSheet'
@@ -11,6 +12,7 @@ import FindingCard from './FindingCard'
 import CheckTooltip from './CheckTooltip'
 
 type SortKey = 'severity' | 'file_path' | 'function_name' | 'line'
+type FindingOrPolicyApplied = Finding | PolicyAppliedFinding
 
 interface SortConfig {
   key: SortKey
@@ -18,7 +20,7 @@ interface SortConfig {
 }
 
 interface Props {
-  findings: Finding[]
+  findings: FindingOrPolicyApplied[]
   searchQuery?: string
   pageSize?: number
   forceExpandedIndex?: number | null
@@ -193,7 +195,12 @@ export default function FindingsTable({ findings, searchQuery = '', pageSize = 2
                     <div className="flex items-start justify-between gap-3 sm:hidden">
                       <div className="flex-1 space-y-1">
                         <div className="flex items-center gap-2">
-                          <SeverityBadge severity={finding.severity} size="sm" />
+                          <SeverityBadge
+                            severity={finding.severity}
+                            originalSeverity={'originalSeverity' in finding ? finding.originalSeverity : undefined}
+                            policyName={'policyName' in finding ? finding.policyName : undefined}
+                            size="sm"
+                          />
                           <CheckTooltip checkName={finding.check_name} />
                         </div>
                         <p className="line-clamp-2 text-sm text-slate-400">{finding.description}</p>
@@ -202,8 +209,13 @@ export default function FindingsTable({ findings, searchQuery = '', pageSize = 2
                     </div>
                     <div className="hidden grid-cols-[120px_1fr_1fr_80px_1fr] items-center gap-4 sm:grid">
                       <div className="flex items-center gap-2">
-                        <SeverityBadge severity={finding.severity} size="sm" />
-                        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{finding.severity}</span>
+                        <SeverityBadge
+                          severity={finding.severity}
+                          originalSeverity={'originalSeverity' in finding ? finding.originalSeverity : undefined}
+                          policyName={'policyName' in finding ? finding.policyName : undefined}
+                          size="sm"
+                          includeIcon={false}
+                        />
                       </div>
                       <CheckTooltip checkName={finding.check_name} />
                       <span className="truncate font-mono text-sm text-slate-300">{finding.function_name}</span>
